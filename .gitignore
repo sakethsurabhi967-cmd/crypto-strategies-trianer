@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+data/*.csv
+models/*.pt
+models/*.json
+trained_models.zip
+.ipynb_checkpoints/
+signals.json
