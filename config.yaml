@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------
+# Global configuration for the EMA 9/21 crypto trading agent.
+# Used by data fetching, training, backtesting and prediction.
+# ---------------------------------------------------------------
+
+exchange:
+  # Any ccxt exchange id with public OHLCV: binance, binanceusdm, bybit, okx, kucoin ...
+  id: binance
+  # For futures training/prediction use binanceusdm (USDT-M perpetuals)
+  futures_id: binanceusdm
+
+market:
+  # spot | futures
+  type: spot
+  symbols:
+    - BTC/USDT
+    - ETH/USDT
+    - SOL/USDT
+  # Timeframes to train/backtest. The backtester ranks these so you can
+  # pick the best timescale per symbol.
+  timeframes:
+    - 15m
+    - 30m
+    - 1h
+    - 4h
+  # How many candles of history to fetch per (symbol, timeframe)
+  history_candles: 20000
+
+strategy:
+  ema_fast: 9
+  ema_slow: 21
+  # Bars ahead used for the training label (forward return horizon)
+  label_horizon: 10
+  # Deadband in ATR units: |forward return| < deadband*ATR% -> "flat" class
+  label_deadband_atr: 0.25
+
+model:
+  seq_len: 64          # candles of context fed to the network
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.3
+
+train:
+  batch_size: 256
+  epochs: 40
+  lr: 0.001
+  weight_decay: 0.0001
+  early_stop_patience: 6
+  # Chronological split fractions (never shuffle time!)
+  val_fraction: 0.15
+  test_fraction: 0.15
+
+backtest:
+  fee_pct: 0.05        # taker fee % per side (0.05% ~= binance futures taker)
+  slippage_pct: 0.02   # assumed slippage % per side
+  # Model confidence needed to take an EMA crossover trade
+  min_confidence: 0.55
+
+predict:
+  models_dir: models
+  min_confidence: 0.55
