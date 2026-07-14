@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -143,28 +144,39 @@ def main() -> None:
     rows = []
     for sym in symbols:
         for tf in timeframes:
-            exid = cfg.exchange.futures_id if futures else cfg.exchange.id
-            raw = fetch_ohlcv(sym, tf, cfg.market.history_candles, exid, futures)
-            feats = build_features(raw, cfg.strategy.ema_fast, cfg.strategy.ema_slow).iloc[60:]
+            try:
+                exid = cfg.exchange.futures_id if futures else cfg.exchange.id
+                raw = fetch_ohlcv(sym, tf, cfg.market.history_candles, exid, futures)
+                feats = build_features(raw, cfg.strategy.ema_fast,
+                                       cfg.strategy.ema_slow).iloc[60:]
 
-            pos = ema_positions(feats, allow_short=futures)
-            mode = "raw"
-            if args.use_model:
-                bundle = os.path.join(
-                    MODELS_DIR, f"{sym.replace('/', '')}_{tf}_{cfg.market.type}.pt"
-                )
-                if not os.path.exists(bundle):
-                    print(f"[backtest] no model bundle for {sym} {tf}, skipping model mode")
-                else:
-                    gate = model_gate(feats, bundle, cfg.backtest.min_confidence, device)
-                    # keep EMA direction, but only while the model agrees
-                    pos = pos.where(np.sign(gate) == np.sign(pos), 0.0)
-                    mode = "model"
+                pos = ema_positions(feats, allow_short=futures)
+                mode = "raw"
+                if args.use_model:
+                    bundle = os.path.join(
+                        MODELS_DIR, f"{sym.replace('/', '')}_{tf}_{cfg.market.type}.pt"
+                    )
+                    if not os.path.exists(bundle):
+                        print(f"[backtest] no model bundle for {sym} {tf}, skipping model mode")
+                    else:
+                        gate = model_gate(feats, bundle, cfg.backtest.min_confidence, device)
+                        # keep EMA direction, but only while the model agrees
+                        pos = pos.where(np.sign(gate) == np.sign(pos), 0.0)
+                        mode = "model"
 
-            stats = run_backtest(feats, pos, cfg.backtest.fee_pct,
-                                 cfg.backtest.slippage_pct, tf)
-            rows.append({"symbol": sym, "timeframe": tf, "mode": mode, **stats})
-            print(f"[backtest] {sym} {tf} ({mode}): {stats}")
+                stats = run_backtest(feats, pos, cfg.backtest.fee_pct,
+                                     cfg.backtest.slippage_pct, tf)
+                rows.append({"symbol": sym, "timeframe": tf, "mode": mode, **stats})
+                print(f"[backtest] {sym} {tf} ({mode}): {stats}")
+            except Exception as e:  # noqa: BLE001 - keep ranking the rest
+                traceback.print_exc()
+                print(f"[backtest] FAILED {sym} {tf}: {e}")
+
+    if not rows:
+        raise SystemExit(
+            "[backtest] every symbol/timeframe failed — see the errors above "
+            "(usually the exchange is unreachable or a symbol is misspelled)."
+        )
 
     df = pd.DataFrame(rows).sort_values(["symbol", "sharpe"], ascending=[True, False])
     print("\n=== Timeframe ranking (best first, by Sharpe) ===")
