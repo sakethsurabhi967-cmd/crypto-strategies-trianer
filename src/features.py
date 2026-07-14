@@ -70,8 +70,9 @@ def build_features(df: pd.DataFrame, ema_fast: int = 9, ema_slow: int = 21) -> p
     out["ema_spread_slope"] = out["ema_spread"].diff()
 
     above = out["ema_fast"] > out["ema_slow"]
-    out["cross_up"] = (above & ~above.shift(1).fillna(False)).astype(float)
-    out["cross_dn"] = (~above & above.shift(1).fillna(True)).astype(float)
+    prev_above = above.shift(1, fill_value=False)
+    out["cross_up"] = (above & ~prev_above).astype(float)
+    out["cross_dn"] = (~above & above.shift(1, fill_value=True)).astype(float)
 
     # bars since the last cross, squashed so it stays bounded
     cross_any = (out["cross_up"] + out["cross_dn"]) > 0

@@ -61,6 +61,15 @@ def train_one(
     print(f"[train] {symbol} {timeframe}: {len(raw)} candles "
           f"({raw.index[0]} .. {raw.index[-1]})")
 
+    # A sequence model trained on a few hundred candles only memorises noise.
+    min_candles = max(3000, cfg.model.seq_len * 10)
+    if len(raw) < min_candles:
+        raise RuntimeError(
+            f"only {len(raw)} candles available — need at least {min_candles}. "
+            "The data source returned too little history; check the [data] "
+            "messages above or pick another symbol/timeframe."
+        )
+
     _, X, y = make_dataset(
         raw,
         cfg.strategy.ema_fast,
